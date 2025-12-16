@@ -1,80 +1,101 @@
 # HackSonTest
 
-这个仓库演示了如何：
+This repository demonstrates how to:
 
-- 创建一个可以被外部调用的 GitHub Action（通过 `repository_dispatch` 事件）
-- 使用本地 HTTP server 暴露一个简单 API，由外部 shell 脚本调用，再由 server 去触发 GitHub Action
+- Create a GitHub Action that can be triggered externally (via the `repository_dispatch` event)
+- Trigger that workflow directly from any environment using a simple `curl` call to the GitHub API (no local server required)
 
-## 目录结构
+## Project Structure
 
-- `.github/workflows/external-trigger.yml`：可被外部触发的 GitHub Action 工作流
-- `server/server.py`：本地 HTTP server，通过 GitHub REST API 触发 `repository_dispatch`
-- `requirements.txt`：Python 依赖（Flask + requests）
-- `trigger_via_local.sh`：示例 shell 脚本，调用本地 server 暴露的 API
+- `.github/workflows/external-trigger.yml`: GitHub Actions workflow that can be triggered externally
 
-## 1. 准备 GitHub Access Token
+## 1. Prepare a GitHub Access Token
 
-1. 在 GitHub 上创建一个 Personal Access Token：
-	- 建议使用 Fine-grained PAT，至少勾选当前仓库的 `Actions`/`Contents` 权限（或 Classic PAT 勾选 `repo` 权限）
-2. 在本机设置环境变量（把占位符替换成你的实际信息）：
+1. Create a Personal Access Token on GitHub:
+	- Recommended: use a fine-grained PAT and grant at least `Actions` / `Contents` permissions for this repository (or use a classic PAT with `repo` scope).
+2. Set environment variables on your machine (replace placeholders with your own values):
 
 ```bash
 export GITHUB_TOKEN="<your_pat_here>"
-export GITHUB_OWNER="rock-57blocks"     # 仓库 Owner
-export GITHUB_REPO="HackSonTest"       # 仓库名
+export GITHUB_OWNER="rock-57blocks"     # Repository owner
+export GITHUB_REPO="HackSonTest"       # Repository name
 ```
 
-## 2. 安装并启动本地 server
+## 2. Workflow Details (`.github/workflows/external-trigger.yml`)
 
-在项目根目录执行：
+This workflow supports two trigger types:
+
+- `repository_dispatch`: triggered by the local server or any external system calling the GitHub REST API
+- `workflow_dispatch`: manually triggered from the GitHub UI with a `message` input
+
+The workflow prints:
+
+- The event name (`github.event_name`)
+- The `client_payload.message` from `repository_dispatch`
+- Or `inputs.message` from `workflow_dispatch`
+
+With this setup you get:
+
+- A GitHub Action that can be called by external systems
+- A simple `curl` example to demonstrate the full invocation flow
+
+## 3. Call GitHub API Directly with curl (Without Local Server)
+
+If you don’t want to use the local server, you can call GitHub’s `repository_dispatch` endpoint directly with `curl`.
+
+**Prerequisite**: prepare the same environment variables (see step 1):
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-# 启动本地 HTTP server（默认端口 8000）
-python server/server.py
+export GITHUB_TOKEN="<your_pat_here>"
+export GITHUB_OWNER="rock-57blocks"
+export GITHUB_REPO="HackSonTest"
 ```
 
-启动后，你可以用浏览器或 curl 测试健康检查：
+### 3.1 Direct curl Call (Minimal Example)
 
 ```bash
-curl http://127.0.0.1:8000/health
+curl -X POST \
+	-H "Accept: application/vnd.github+json" \
+	-H "Authorization: Bearer ${GITHUB_TOKEN}" \
+	-H "X-GitHub-Api-Version: 2022-11-28" \
+	"https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/dispatches" \
+	-d '{
+		"event_type": "run-external-job",
+		"client_payload": {
+			"message": "triggered directly by curl"
+		}
+	}'
 ```
 
-## 3. 使用 shell 脚本调用暴露的 API
+Notes:
 
-在另外一个终端（保持 server 进程不关）：
+- `event_type` must match what the workflow listens to (`run-external-job` here).
+- `client_payload.message` can be read in the workflow via `github.event.client_payload.message`.
+
+### 3.2 Wrap in a Shell Script (Optional)
+
+You can also create a small script, e.g. `trigger_direct.sh`:
 
 ```bash
-chmod +x trigger_via_local.sh
-./trigger_via_local.sh "Hello from external shell"
+#!/usr/bin/env bash
+set -euo pipefail
+
+MESSAGE="${1:-Hello from direct curl}"
+
+curl -X POST \
+	-H "Accept: application/vnd.github+json" \
+	-H "Authorization: Bearer ${GITHUB_TOKEN}" \
+	-H "X-GitHub-Api-Version: 2022-11-28" \
+	"https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/dispatches" \
+	-d "{\"event_type\": \"run-external-job\", \"client_payload\": {\"message\": \"${MESSAGE}\"}}"
 ```
 
-这个脚本会：
+Then:
 
-1. 向本地 `http://127.0.0.1:8000/trigger` 发送一个 POST 请求（带上 message）
-2. 本地 server 使用 GitHub API 调用 `repository_dispatch`：
-	- `event_type`: `run-external-job`
-	- `client_payload.message`: 你传入的 message
-3. GitHub 端的 `external-trigger.yml` 工作流会被触发，你可以在 Actions 页面里看到这次运行
+```bash
+chmod +x trigger_direct.sh
+./trigger_direct.sh "message from direct curl"
+```
 
-## 4. 工作流说明（`.github/workflows/external-trigger.yml`）
-
-该工作流支持两种触发方式：
-
-- `repository_dispatch`：由本地 server 或其它系统通过 GitHub REST API 触发
-- `workflow_dispatch`：你也可以在 GitHub UI 手动触发，并传入一个 message 输入
-
-工作流会打印：
-
-- 触发事件名（`github.event_name`）
-- 来自 `repository_dispatch` 的 `client_payload.message`
-- 或来自 `workflow_dispatch` 的 `inputs.message`
-
-这样你就拥有了：
-
-- 一个可以通过外部系统（本地 server / 将来任何服务）调用的 GitHub Action
-- 一个简单的 HTTP API + shell 脚本示例，用于演示整个调用链路
+This directly triggers the GitHub Action in the remote repository without relying on the local HTTP server.
 

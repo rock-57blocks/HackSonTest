@@ -34,3 +34,19 @@ jobs:
         run: |
           echo "Running external-triggered job..."
           date
+
+      - name: Send notification email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          # TODO: Replace these SMTP settings with your real mail server
+          server_address: ${{ secrets.SMTP_SERVER_ADDRESS }}
+          server_port: ${{ secrets.SMTP_SERVER_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          secure: true
+
+          subject: "This is a test email from github action (Harry Potter hackSon team)"
+          to: "rchen@ext.liftoff.io"
+          from: "GitHub Actions <no-reply@example.com>"
+          body: |
+            This is a test email that test workflow
