@@ -1,0 +1,36 @@
+name: External Trigger Workflow
+
+on:
+  # Triggered via API from local server using repository_dispatch
+  repository_dispatch:
+    types: [run-external-job]
+
+  # Optional: allow manual triggering from the GitHub UI
+  workflow_dispatch:
+    inputs:
+      message:
+        description: 'Message from external trigger or manual run'
+        required: false
+        default: 'Hello from workflow_dispatch'
+
+jobs:
+  run-external-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Show trigger context
+        run: |
+          echo "Event name: ${{ github.event_name }}"
+          echo "Repository: ${{ github.repository }}"
+
+      - name: Print messages from event
+        env:
+          DISPATCH_MESSAGE: ${{ github.event.client_payload.message }}
+          WORKFLOW_MESSAGE: ${{ github.event.inputs.message }}
+        run: |
+          echo "Message from repository_dispatch client_payload: ${DISPATCH_MESSAGE:-<none>}"
+          echo "Message from workflow_dispatch input: ${WORKFLOW_MESSAGE:-<none>}"
+
+      - name: Do some work
+        run: |
+          echo "Running external-triggered job..."
+          date
