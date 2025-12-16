@@ -35,6 +35,47 @@ jobs:
           echo "Running external-triggered job..."
           date
 
+      - name: Add comment to Jira ticket
+        if: ${{ github.event.client_payload.jira_ticket_url != '' }}
+        env:
+          JIRA_TICKET_URL: ${{ github.event.client_payload.jira_ticket_url }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          if [ -z "$JIRA_TICKET_URL" ]; then
+            echo "No JIRA_TICKET_URL provided, skipping Jira comment."
+            exit 0
+          fi
+
+          echo "Jira ticket URL: $JIRA_TICKET_URL"
+
+          # Extract base URL and issue key from a URL like:
+          #   https://your-domain.atlassian.net/browse/KEY-123
+          JIRA_BASE_URL=$(echo "$JIRA_TICKET_URL" | sed -E 's#(https?://[^/]+)/.*#\1#')
+          ISSUE_KEY=$(echo "$JIRA_TICKET_URL" | sed -E 's#.*/browse/([^/?]+).*#\1#')
+
+          if [ -z "$ISSUE_KEY" ] || [ -z "$JIRA_BASE_URL" ]; then
+            echo "Failed to extract Jira base URL or issue key from: $JIRA_TICKET_URL"
+            exit 1
+          fi
+
+          if [ -z "$JIRA_EMAIL" ] || [ -z "$JIRA_API_TOKEN" ]; then
+            echo "Missing Jira credentials. Please set JIRA_EMAIL and JIRA_API_TOKEN secrets."
+            exit 1
+          fi
+
+          AUTH=$(printf '%s:%s' "$JIRA_EMAIL" "$JIRA_API_TOKEN" | base64)
+
+          echo "Commenting on Jira issue $ISSUE_KEY at $JIRA_BASE_URL"
+
+          COMMENT_BODY='{"body":"This is a test comment posted from GitHub Actions workflow."}'
+
+          curl -sS -X POST \
+            -H "Authorization: Basic $AUTH" \
+            -H "Content-Type: application/json" \
+            "$JIRA_BASE_URL/rest/api/3/issue/$ISSUE_KEY/comment" \
+            -d "$COMMENT_BODY"
+
       - name: Send notification email
         uses: dawidd6/action-send-mail@v3
         with:

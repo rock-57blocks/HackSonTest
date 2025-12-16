@@ -62,7 +62,8 @@ curl -X POST \
 	-d '{
 		"event_type": "run-external-job",
 		"client_payload": {
-			"message": "triggered directly by curl"
+			"message": "triggered directly by curl",
+			"jira_ticket_url": "https://your-domain.atlassian.net/browse/KEY-123"
 		}
 	}'
 ```
@@ -71,6 +72,7 @@ Notes:
 
 - `event_type` must match what the workflow listens to (`run-external-job` here).
 - `client_payload.message` can be read in the workflow via `github.event.client_payload.message`.
+- `client_payload.jira_ticket_url` is used to post a comment to that Jira ticket.
 
 ### 3.2 Wrap in a Shell Script (Optional)
 
