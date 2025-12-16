@@ -66,21 +66,6 @@ jobs:
 
           AUTH=$(printf '%s:%s' "$JIRA_EMAIL" "$JIRA_API_TOKEN" | base64)
 
-          echo "Commenting on Jira issue $ISSUE_KEY at $JIRA_BASE_URL"
-
-          COMMENT_BODY='{"body":"This is a test comment posted from GitHub Actions workflow."}'
-
-          curl -sS -X POST \
-            -H "Authorization: Basic $AUTH" \
-            -H "Content-Type: application/json" \
-            "$JIRA_BASE_URL/rest/api/3/issue/$ISSUE_KEY/comment" \
-            -d "$COMMENT_BODY"
-
-      - name: Send notification email
-        uses: dawidd6/action-send-mail@v3
-        with:
-          # TODO: Replace these SMTP settings with your real mail server
-          server_address: ${{ secrets.SMTP_SERVER_ADDRESS }}
           server_port: ${{ secrets.SMTP_SERVER_PORT }}
           username: ${{ secrets.SMTP_USERNAME }}
           password: ${{ secrets.SMTP_PASSWORD }}
